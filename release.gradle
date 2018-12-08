@@ -1,0 +1,68 @@
+//版本号，也是tinkId
+def mVersionName = getVersion()
+//补丁版本号
+def mTinkerVersion = "1.0"
+
+//输出目录
+def mOutputPath = "${rootDir}/release/v${mVersionName}/"
+//基准包输出目录
+def mBaseApkPath = "${mOutputPath}/BaseApk/flavorName/"
+//基准apk名称
+def mBaseApkName = "${rootProject.name}-v${mVersionName}-flavorName.apk"
+//补丁包输出目录
+def mPatchPath = "${mOutputPath}/tinker-version-${mTinkerVersion}/flavorName/"
+//渠道
+List<String> flavors = new ArrayList<>()
+android.applicationVariants.all { variant ->
+    if (variant.name.contains("Release")) {
+        flavors.add(variant.flavorName)
+    }
+}
+
+/**
+ *  使用命令行运行assembleRelease时:
+ *  运行assembleRelease前，校验文件是否已存在
+ *  运行assembleRelease后，自动把生成的apk、mapping.txt、R.txt拷贝到基准apk目录下
+ */
+android.applicationVariants.all { variant ->
+    //不是使用assembleRelease运行的
+    if (!project.gradle.startParameter.taskNames.contains("assembleRelease")) return
+    //做校验，如果版本号存在，中断
+    if (new File(mOutputPath).exists()) {
+        print "该版本已存在，打包任务停止"
+        assert false
+    }
+    //获得task名
+    String taskName = variant.getName().capitalize()
+    if (!taskName.contains("Release")) return
+    tasks.getByName("assemble${taskName}") {
+        String flavorName = taskName.substring(0, taskName.length() - 7).toLowerCase()
+        String dir = mBaseApkPath.replace("flavorName", flavorName)
+        String apkName = mBaseApkName.replace("flavorName", flavorName)
+        it.doLast {
+            //复制apk
+            copy {
+                from "${buildDir}/outputs/apk/${flavorName}/release/app-${flavorName}-release.apk"
+                into "${dir}"
+                rename { String fileName ->
+                    return apkName
+                }
+            }
+            //复制mapping.txt
+            copy {
+                from "${buildDir}/outputs/mapping/${flavorName}/release/mapping.txt"
+                into "${dir}"
+            }
+            //复制R.txt
+            copy {
+                from "${buildDir}/intermediates/symbols/${flavorName}/release/R.txt"
+                into "${dir}"
+            }
+        }
+    }
+}
+//---------------------
+//        作者：Jimi_Wu
+//来源：CSDN
+//原文：https://blog.csdn.net/anyfive/article/details/80160279
+//版权声明：本文为博主原创文章，转载请附上博文链接！
